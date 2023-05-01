@@ -1,0 +1,113 @@
+const int SWITCH_MODE_PIN = 3;
+const int INC_SWITCH_PIN = 4;
+const int DEC_SWITCH_PIN = 7;
+const int LOOKUP_SWITCH_PIN = 8;
+const int ledPin = 9;
+
+bool switchMode = false; // initially not in switch mode
+bool switchModePrevState = false; // previous state of switch mode switch
+bool switchModeDebounced = false; // debounced state of switch mode switch
+unsigned long switchModeLastDebounceTime = 0; // last time switch mode pin was toggled
+const unsigned long switchModeDebounceDelay = 50; // debounce delay for switch mode pin
+
+bool lookupSwitch = false; // initially not in normal mode
+int value = 20; // initial value
+char lookupTable[][2] = {
+  {80, 50},
+  {100, 80},
+  {60, 40}
+};
+unsigned long previousTime = 0; // variable to keep track of previous time
+unsigned long interval = 1000; // interval to send data in switch mode
+
+void setup() {
+  Serial.begin(9600); // initialize serial communication
+  pinMode(SWITCH_MODE_PIN, INPUT); // set switch mode pin as input with internal pull-up resistor
+  pinMode(INC_SWITCH_PIN, INPUT); // set increment switch pin as input with internal pull-up resistor
+  pinMode(DEC_SWITCH_PIN, INPUT); // set decrement switch pin as input with internal pull-up resistor
+  pinMode(LOOKUP_SWITCH_PIN, INPUT); // set lookup switch pin as input with internal pull-up resistor
+  pinMode(ledPin, OUTPUT);
+
+}
+
+void loop() {
+  char receivedData = '\0';
+
+  // debounce switch mode switch
+  int switchModeReading = digitalRead(SWITCH_MODE_PIN);
+  if (switchModeReading != switchModePrevState) {
+    switchModeLastDebounceTime = millis();
+  }
+  if ((millis() - switchModeLastDebounceTime) > switchModeDebounceDelay) {
+    if (switchModeReading != switchModeDebounced) {
+      switchModeDebounced = switchModeReading;
+      if (switchModeDebounced == LOW) {
+        switchMode = !switchMode; // toggle switch mode
+        if (!switchMode) {
+          // if exiting switch mode, reset value
+          value = 20;
+        }
+
+        else {
+  // if entering switch mode, blink LED three times
+  digitalWrite(ledPin, HIGH);
+  delay(100);
+  digitalWrite(ledPin, LOW);
+  delay(100);
+  digitalWrite(ledPin, HIGH);
+  delay(100);
+  digitalWrite(ledPin, LOW);
+  delay(100);
+  digitalWrite(ledPin, HIGH);
+  delay(100);
+  digitalWrite(ledPin, LOW);
+  delay(100);
+}
+      }
+    }
+  }
+  switchModePrevState = switchModeReading;
+
+  // check if lookup switch is on
+  bool lookupSwitchState = digitalRead(LOOKUP_SWITCH_PIN);
+  if (lookupSwitchState == HIGH) {
+    // if lookup switch is on, look up the incoming data in the table and send the corresponding value
+    if (Serial.available() > 0) {
+      receivedData = Serial.read(); // read the incoming data
+      for (int i = 0; i < sizeof(lookupTable); i++) {
+        if (lookupTable[i][0] == receivedData) {
+          Serial.write((char)lookupTable[i][1]); // transmit the corresponding value in the table
+          break;
+        }
+      }
+    }
+  } else {
+    // if lookup switch is off, send incoming data as is
+    if (Serial.available() > 0) {
+      Serial.write((char)Serial.read());
+    }
+  }
+
+  // check if switch mode is on
+if (switchMode) {
+// if switch mode is on, increment or decrement value based on switch state
+if (digitalRead(INC_SWITCH_PIN) == HIGH) {
+value += 20;
+if (value > 100) {
+value = 20;
+}
+} else if (digitalRead(DEC_SWITCH_PIN) == HIGH) {
+value -= 20;
+if (value < 20) {
+value = 100;
+}
+}
+// check if it's time to send the data
+unsigned long currentTime = millis();
+if (currentTime - previousTime >= interval) {
+previousTime = currentTime;
+// send the current value
+Serial.print((char)value);
+}
+}
+}
